@@ -20,12 +20,12 @@ unsigned long downMs = 900;
 //unsigned long motionStartMs = 0;
 unsigned long initialBlockMs = 1000;
 
-float profileX = 0;
-float profileY = 0;
-int prevX = 0;
-int nextX = 0;
+// float profileX = 0;
+// float profileY = 0;
+// int prevX = 0;
+// int nextX = 0;
 
-enum SignalStates { CLEAR, TO_DANGER, DANGER, TO_CLEAR };
+enum SignalStates { DANGER, TO_CLEAR, CLEAR, TO_DANGER };
 // Configure the SERVOS
 // twelve servo objects can be created on most boards
 const int SERVOS = 1;
@@ -45,6 +45,7 @@ void setup() {
   pinMode(3, INPUT_PULLUP);
 
   Serial.begin(9600);
+  Serial.println("Set up completed");
 }
 
 int getAngle(int signalArm, int prevX, float profileX, int profile[]) {
@@ -59,41 +60,94 @@ int getAngle(int signalArm, int prevX, float profileX, int profile[]) {
   return outY;
 }
 
+// int operateSignal(int state, int i) {
+//   switch(state) {
+//     case DANGER:
+//       if (digitalRead(InPins[0]) == UNSENSED) {
+//         motionStartMs[i] = millis();
+//         state = TO_CLEAR;
+//       }
+//       break;
+//     case TO_CLEAR:
+//       if (motionStartMs[i] + 1000 < millis()) {
+//         state = CLEAR;
+//       }
+//       break;
+//     case CLEAR:
+//       if (digitalRead(InPins[0]) == SENSED) {
+//         motionStartMs[i] = millis();
+//         state = TO_DANGER;
+//       }
+//       break;
+//     case TO_DANGER:
+//       if (motionStartMs[i] + 1000 < millis()) {
+//         state = DANGER;
+//       }
+//       break;
+//     default:
+//       state = CLEAR;
+//       break;
+//   }
+//   Serial.print("state = "); Serial.println(state);
+//   return state;
+// }
 int operateSignal(int state, int i) {
+  float profileX = 0;
+  unsigned long motionMs;
+  int prevX = 0;
+
   switch(state) {
-    case CLEAR:
-      if (digitalRead(InPins[0]) == SENSED) {
-        motionStartMs[i] = millis();
-        state = TO_DANGER;
-      }
-      break;
-    case TO_DANGER:
-      if (motionStartMs[i] + 1000 < millis()) {
-        state = DANGER;
-      }
-      break;
     case DANGER:
       if (digitalRead(InPins[0]) == UNSENSED) {
         motionStartMs[i] = millis();
         state = TO_CLEAR;
+        Serial.println("state = TO_CLEAR");
       }
       break;
     case TO_CLEAR:
-      if (motionStartMs[i] + 1000 < millis()) {
+      motionMs = millis() - motionStartMs[i];
+      profileX = 0 + (profileUpSpan * motionMs) / (float)upMs;
+      prevX = (int)profileX;
+      servo[i].write(getAngle(i, prevX, profileX, profile));
+      Serial.print("prevX = "); Serial.println(prevX);
+      if (prevX >= profileUpSpan) {
         state = CLEAR;
+        Serial.println("state = CLEAR");
+      }
+      break;
+    case CLEAR:
+      if (digitalRead(InPins[0]) == SENSED) {
+        motionStartMs[i] = millis();
+        state = TO_DANGER;
+        Serial.println("state = TO_DANGER");
+      }
+      break;
+    case TO_DANGER:
+      motionMs = millis() - motionStartMs[i];
+      profileX = profileUpSpan + (profileDownSpan * motionMs) / (float)upMs;
+      prevX = (int)profileX;
+      servo[i].write(getAngle(i, prevX, profileX, profile));
+      Serial.print("prevX = "); Serial.println(prevX);
+      if (prevX >= profileUpSpan + profileDownSpan) {
+        state = DANGER;
+        Serial.println("state = DANGER");
       }
       break;
     default:
       state = CLEAR;
       break;
   }
-  Serial.print("state = "); Serial.println(state);
+  //Serial.print("state = "); Serial.println(state);
   return state;
 }
 
 // the loop function runs over and over again forever
 void loop() {
-  // if (millis() > initialBlockMs) {
+  if (millis() > initialBlockMs) {
+//     float profileX = 0;
+// float profileY = 0;
+// int prevX = 0;
+// int nextX = 0;
   //   motionStartMs = millis() - initialBlockMs; // time of motion start
   //   //deltamotionStartMs = motionStartMs - prevmotionStartMs;
   //   profileX = (profileUpSpan) * motionStartMs / (float)upMs;
@@ -103,9 +157,10 @@ void loop() {
   //     //Serial.print("prevX = "); Serial.print(prevX); Serial.print(", profileX = "); Serial.print(profileX); Serial.print(", outY = "); Serial.print(outY); Serial.print(", profileY = "); Serial.print(profileY); Serial.print(", deltamotionStartMs = "); Serial.println(deltamotionStartMs);
   //   }
   // }
-  for (int i = 0; i < SERVOS; i++) {
-    digitalWrite(LED_BUILTIN, digitalRead(InPins[i]));
-    state[i] = operateSignal(state[i], i);
+    for (int i = 0; i < SERVOS; i++) {
+      digitalWrite(LED_BUILTIN, digitalRead(InPins[i]));
+      state[i] = operateSignal(state[i], i);
+    }
   }
 
   //prevmotionStartMs = millis();
